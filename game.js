@@ -14,14 +14,6 @@
   };
   const DOUBLE_INITIALS = new Set(['ㄲ', 'ㄸ', 'ㅃ', 'ㅆ', 'ㅉ']);
   const ALL_JAMO = [...'ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎㅏㅑㅓㅕㅗㅛㅜㅠㅡㅣㅐㅔ'];
-  // 화면 표시와 분리된 TTS 전용 문자열. 브라우저 발음 보정은 이 표만 수정하면 된다.
-  const ttsMap = {
-    'ㄱ':'기역', 'ㄲ':'쌍기역', 'ㄴ':'니은', 'ㄷ':'디귿', 'ㄸ':'쌍디귿', 'ㄹ':'리을',
-    'ㅁ':'미음', 'ㅂ':'비읍', 'ㅃ':'쌍비읍', 'ㅅ':'시옷', 'ㅆ':'쌍시옷',
-    'ㅇ':'이응', 'ㅈ':'지읒', 'ㅉ':'쌍지읒', 'ㅊ':'치읓', 'ㅋ':'키윽', 'ㅌ':'티읕', 'ㅍ':'피읖', 'ㅎ':'히읏',
-    'ㅏ':'아', 'ㅑ':'야', 'ㅓ':'어', 'ㅕ':'여', 'ㅗ':'오', 'ㅛ':'요', 'ㅜ':'우', 'ㅠ':'유',
-    'ㅡ':'으', 'ㅣ':'이', 'ㅐ':'애', 'ㅔ':'에'
-  };
   const BASE_FALL_SPEED = 208;
   const FALL_SPEED_MULTIPLIER = { easy: .6, normal: 1.2, hard: 1.95 };
   const BASE_SPAWN_INTERVAL = { easy: .72, normal: .58, hard: .44 };
@@ -79,12 +71,9 @@
   let animationId = 0;
   let reactionTimer = 0;
   let starTimers = [];
-  let preferredKoreanVoice = null;
-  let speechSequenceId = 0;
   let targetTransitionTimer = 0;
   const SOUND_STORAGE_KEY = 'dinoHangulSoundSettings';
-  const VOICE_STORAGE_KEY = 'dinoHangulSelectedVoiceURI';
-  const DEFAULT_SOUND_SETTINGS = { sfx: .7, tts: 1, bgm: .5, ttsRate: 1, ttsPitch: 1, bgmChoice: 'random' };
+  const DEFAULT_SOUND_SETTINGS = { sfx: .7, bgm: .5, bgmChoice: 'random' };
   const BGM_TRACKS = [
     { id: '001', title: '슈퍼파워 히어로', src: 'audio/bgm/001.ogg' },
     { id: '002', title: '엄마랑 한글공부', src: 'audio/bgm/002.ogg' },
@@ -102,13 +91,18 @@
   const MAIN_BGM_FADE_OUT_MS = 400;
   const MAIN_BGM_FADE_IN_MS = 500;
   const BGM_PREVIEW_MAIN_FADE_MS = 200;
-  let availableTtsVoices = [];
-  let selectedVoiceURI = loadSelectedVoiceURI();
+  const SFX_PATHS = {
+    click: 'audio/sfx/click.ogg',
+    eat: 'audio/sfx/eat.ogg',
+    good: 'audio/sfx/good.ogg',
+    bad: 'audio/sfx/bad.ogg',
+    resultStar: 'audio/sfx/result-star.ogg',
+    success: 'audio/sfx/success.ogg',
+    fail: 'audio/sfx/fail.ogg'
+  };
   let soundSettings = loadSoundSettings();
   let committedSoundSettings = { ...soundSettings };
   let draftSoundSettings = { ...soundSettings };
-  let committedVoiceURI = selectedVoiceURI;
-  let draftVoiceURI = selectedVoiceURI;
   let mainBgmAudio = null;
   let bgmAudio = null;
   let nextBgmAudio = null;
@@ -121,11 +115,11 @@
   let bgmFadeAnimationId = 0;
   let mainBgmFadeAnimationId = 0;
   let currentBgmMode = 'none';
+  const sfxCache = {};
 
   function loadSoundSettings() {
     const ranges = {
-      sfx: [0, 1], tts: [0, 1], bgm: [0, 1],
-      ttsRate: [.7, 1.3], ttsPitch: [.7, 1.6]
+      sfx: [0, 1], bgm: [0, 1]
     };
     try {
       const saved = JSON.parse(localStorage.getItem(SOUND_STORAGE_KEY));
@@ -150,9 +144,8 @@
   }
 
   function getSoundViewFields(viewId) {
-    if (viewId === 'volumeView') return ['sfx', 'tts', 'bgm'];
+    if (viewId === 'volumeView') return ['sfx', 'bgm'];
     if (viewId === 'bgmView') return ['bgmChoice'];
-    if (viewId === 'ttsView') return ['ttsRate', 'ttsPitch'];
     return Object.keys(DEFAULT_SOUND_SETTINGS);
   }
 
@@ -167,18 +160,12 @@
       updateMainBgmVolume();
       if (bgmPreviewAudio) bgmPreviewAudio.volume = getBgmPreviewVolume();
     }
-    if (fields.includes('ttsRate') || fields.includes('ttsPitch')) updatePreferredVoice();
   }
 
   function restoreDraftFromCommitted(viewId = 'all') {
     const fields = viewId === 'all' ? Object.keys(DEFAULT_SOUND_SETTINGS) : getSoundViewFields(viewId);
     copyFields(committedSoundSettings, draftSoundSettings, fields);
     copyFields(committedSoundSettings, soundSettings, fields);
-    if (viewId === 'ttsView' || viewId === 'all') {
-      draftVoiceURI = committedVoiceURI;
-      selectedVoiceURI = committedVoiceURI;
-      updatePreferredVoice();
-    }
     if (fields.includes('bgmChoice')) syncBgmChoiceControls();
     syncSoundControls();
     updateBgmVolume();
@@ -190,12 +177,6 @@
     const fields = getSoundViewFields(viewId);
     copyFields(draftSoundSettings, committedSoundSettings, fields);
     copyFields(committedSoundSettings, soundSettings, fields);
-    if (viewId === 'ttsView') {
-      committedVoiceURI = draftVoiceURI;
-      selectedVoiceURI = committedVoiceURI;
-      saveSelectedVoiceURI();
-      updatePreferredVoice();
-    }
     saveSoundSettings();
     syncSoundControls();
     syncBgmChoiceControls();
@@ -569,17 +550,6 @@
     document.removeEventListener('keydown', tryStartMainBgmFromInteraction);
   }
 
-  function loadSelectedVoiceURI() {
-    try { return localStorage.getItem(VOICE_STORAGE_KEY) || ''; } catch (_) { return ''; }
-  }
-
-  function saveSelectedVoiceURI() {
-    try {
-      if (selectedVoiceURI) localStorage.setItem(VOICE_STORAGE_KEY, selectedVoiceURI);
-      else localStorage.removeItem(VOICE_STORAGE_KEY);
-    } catch (_) { /* 음성 선택 저장이 막혀도 게임은 계속된다. */ }
-  }
-
   function loadDinoSprite(name) {
     const image = new Image();
     image.src = `images/dino/${name}.png`;
@@ -693,7 +663,6 @@
     const config = SETTINGS[difficulty];
     const timeLimit = Math.min(word.length * config.secondsPerLetter, 600);
     clearTimeout(targetTransitionTimer);
-    speechSequenceId += 1;
     state = {
       word, needed, targets, targetIndex: 0, remaining: [...targets[0].jamo], health: 5,
       difficulty, config, timeLimit,
@@ -714,7 +683,6 @@
     state.dino.x = (canvas.clientWidth - state.dino.w) / 2;
     cancelAnimationFrame(animationId);
     animationId = requestAnimationFrame(traceLoop);
-    speakCurrentTarget();
   }
 
   function renderRemaining(eatenIndex = -1) {
@@ -746,136 +714,22 @@
     $('healthHearts').setAttribute('aria-label', `체력 ${state.health}칸`);
   }
 
-  function updatePreferredVoice() {
-    if (!('speechSynthesis' in window)) return;
-    availableTtsVoices = window.speechSynthesis.getVoices();
-    const koreanVoices = availableTtsVoices.filter((voice) => /^ko([-_]|$)/i.test(voice.lang || ''));
-    const savedVoice = selectedVoiceURI ? availableTtsVoices.find((voice) => (voice.voiceURI || voice.name) === selectedVoiceURI) : null;
-    preferredKoreanVoice = savedVoice || koreanVoices[0] || availableTtsVoices[0] || null;
-    if (selectedVoiceURI && !savedVoice && preferredKoreanVoice) {
-      selectedVoiceURI = preferredKoreanVoice.voiceURI || preferredKoreanVoice.name || '';
-      draftVoiceURI = selectedVoiceURI;
-    }
-    renderTtsVoiceControls();
+  function getSfxVolumeMultiplier(type) {
+    return type === 'bad' ? 1.15 : (type === 'resultStar' ? 1.2 : (type === 'fail' ? .85 : (type === 'success' ? .9 : 1)));
   }
 
-  function resetTtsSettings() {
-    updatePreferredVoice();
-    const koreanVoices = availableTtsVoices.filter((voice) => /^ko([-_]|$)/i.test(voice.lang || ''));
-    preferredKoreanVoice = koreanVoices[0] || availableTtsVoices[0] || null;
-    draftVoiceURI = preferredKoreanVoice ? (preferredKoreanVoice.voiceURI || preferredKoreanVoice.name || '') : '';
-    selectedVoiceURI = draftVoiceURI;
-    draftSoundSettings.ttsRate = DEFAULT_SOUND_SETTINGS.ttsRate;
-    draftSoundSettings.ttsPitch = DEFAULT_SOUND_SETTINGS.ttsPitch;
-    applyDraftSettingsToRuntime(['ttsRate', 'ttsPitch']);
-    syncSoundControls();
-    renderTtsVoiceControls();
-  }
-
-  function getDisplayVoices() {
-    const koreanVoices = availableTtsVoices.filter((voice) => /^ko([-_]|$)/i.test(voice.lang || ''));
-    return koreanVoices.length ? koreanVoices : availableTtsVoices;
-  }
-
-  function renderTtsVoiceControls() {
-    const select = $('ttsVoiceSelect');
-    if (!select) return;
-    const voices = getDisplayVoices();
-    select.innerHTML = '';
-    if (!voices.length) {
-      const option = document.createElement('option');
-      option.value = '';
-      option.textContent = '음성 불러오는 중';
-      select.appendChild(option);
-      return;
-    }
-    voices.forEach((voice, index) => {
-      const option = document.createElement('option');
-      option.value = voice.voiceURI || voice.name || String(index);
-      option.textContent = `${voice.name || '이름 없음'} (${voice.lang || 'lang 없음'})`;
-      select.appendChild(option);
+  function preloadSfx() {
+    Object.entries(SFX_PATHS).forEach(([type, path]) => {
+      if (sfxCache[type]) return;
+      try {
+        const audio = new Audio(path);
+        audio.preload = 'auto';
+        audio.load?.();
+        sfxCache[type] = audio;
+      } catch (_) { /* SFX preload is optional. */ }
     });
-    if (preferredKoreanVoice) select.value = preferredKoreanVoice.voiceURI || preferredKoreanVoice.name || '';
   }
 
-  function createKoreanUtterance(text) {
-    const speech = new SpeechSynthesisUtterance(text);
-    speech.lang = 'ko-KR';
-    if (preferredKoreanVoice) speech.voice = preferredKoreanVoice;
-    speech.rate = soundSettings.ttsRate;
-    speech.pitch = soundSettings.ttsPitch;
-    speech.volume = soundSettings.tts;
-    return speech;
-  }
-
-  function getTtsTestText(button) {
-    if (button.dataset.ttsJamo) return [...button.dataset.ttsJamo].map((jamo) => ttsMap[jamo] || jamo).join(', ');
-    return button.dataset.ttsTest || '';
-  }
-
-  function speakTestSequence(words, pause = 260) {
-    if (!('speechSynthesis' in window) || !('SpeechSynthesisUtterance' in window)) return;
-    try {
-      updatePreferredVoice();
-      window.speechSynthesis.cancel();
-      const speakNext = (index) => {
-        if (index >= words.length) return;
-        const speech = createKoreanUtterance(words[index]);
-        const next = () => setTimeout(() => speakNext(index + 1), pause);
-        speech.onend = next;
-        speech.onerror = next;
-        window.speechSynthesis.speak(speech);
-      };
-      speakNext(0);
-    } catch (_) { /* 테스트 음성도 지원되지 않으면 조용히 넘어간다. */ }
-  }
-
-  function initializeTtsVoiceTester() {
-    const select = $('ttsVoiceSelect');
-    if (select) {
-      select.addEventListener('change', () => {
-        draftVoiceURI = select.value;
-        selectedVoiceURI = draftVoiceURI;
-        updatePreferredVoice();
-      });
-    }
-    document.querySelectorAll('[data-tts-test], [data-tts-jamo]').forEach((button) => {
-      button.addEventListener('click', (event) => {
-        Promise.resolve(event.sfxPromise).finally(() => speakTestSequence([getTtsTestText(button)], 0));
-      });
-    });
-    $('resetTtsButton')?.addEventListener('click', resetTtsSettings);
-  }
-
-  function speakSequence(words, pause = 240) {
-    if (!state || !state.running || !('speechSynthesis' in window) || !('SpeechSynthesisUtterance' in window)) return;
-    try {
-      updatePreferredVoice();
-      const sequenceId = ++speechSequenceId;
-      window.speechSynthesis.cancel();
-      const speakNext = (index) => {
-        if (sequenceId !== speechSequenceId || index >= words.length || !state?.running) return;
-        const speech = createKoreanUtterance(words[index]);
-        const next = () => setTimeout(() => speakNext(index + 1), pause);
-        speech.onend = next;
-        speech.onerror = next;
-        window.speechSynthesis.speak(speech);
-      };
-      speakNext(0);
-    } catch (_) { /* 음성 미지원 환경에서는 게임만 계속한다. */ }
-  }
-
-  function speakCurrentTarget() {
-    if (!state?.running) return;
-    const target = state.mode === 'trace' ? state.targets[state.traceIndex] : state.targets[state.targetIndex];
-    speakSequence([target.char], 0);
-  }
-
-  function speakJamo(jamo) {
-    speakSequence([ttsMap[jamo] || jamo], 0);
-  }
-
-  // 효과음은 파일이 없거나 볼륨이 0이면 조용히 건너뛰고, 필요하면 끝난 뒤 다음 동작을 이어간다.
   function playSfx(type) {
     const paths = {
       click: 'audio/sfx/click.ogg',
@@ -886,12 +740,13 @@
       success: 'audio/sfx/success.ogg',
       fail: 'audio/sfx/fail.ogg'
     };
-    const path = paths[type];
+    const path = SFX_PATHS[type];
     if (!path || soundSettings.sfx <= 0) return Promise.resolve(false);
     return new Promise((resolve) => {
       try {
-        const audio = new Audio(path);
-        const volumeMultiplier = type === 'bad' ? 1.15 : (type === 'resultStar' ? 1.2 : (type === 'fail' ? .85 : (type === 'success' ? .9 : 1)));
+        if (!sfxCache[type]) preloadSfx();
+        const audio = sfxCache[type]?.cloneNode ? sfxCache[type].cloneNode(true) : new Audio(path);
+        const volumeMultiplier = getSfxVolumeMultiplier(type);
         audio.volume = Math.min(1, soundSettings.sfx * volumeMultiplier);
         const done = (played) => {
           audio.onended = null;
@@ -917,10 +772,6 @@
     });
   }
 
-  function playEatSfxThenSpeak(jamo) {
-    playSfx('eat').finally(() => speakJamo(jamo));
-  }
-
   function advanceTarget() {
     state.targetIndex += 1;
     if (state.targetIndex >= state.targets.length) {
@@ -935,7 +786,6 @@
     state.dino.transitionInvincibleUntil = performance.now() + 500;
     rerollExistingJamoBlocks();
     renderRemaining();
-    speakCurrentTarget();
   }
 
   function restartPlayOnly() {
@@ -944,8 +794,6 @@
       return;
     }
     clearTimeout(targetTransitionTimer);
-    speechSequenceId += 1;
-    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
     state.running = true;
     state.mode = 'play';
     state.targetIndex = 0;
@@ -984,7 +832,6 @@
     state.dino.x = (canvas.clientWidth - state.dino.w) / 2;
     cancelAnimationFrame(animationId);
     animationId = requestAnimationFrame(gameLoop);
-    speakCurrentTarget();
   }
 
   function resizeCanvas() {
@@ -1070,7 +917,6 @@
     state.traceStrokes = [];
     renderTraceInfo();
     state.lastTime = 0;
-    speakCurrentTarget();
   }
 
   function completeTraceMode() {
@@ -1098,7 +944,6 @@
     state.dino.x = (canvas.clientWidth - state.dino.w) / 2;
     cancelAnimationFrame(animationId);
     animationId = requestAnimationFrame(gameLoop);
-    speakCurrentTarget();
   }
 
   function goNextTrace() {
@@ -1406,7 +1251,7 @@
       state.remaining.splice(index, 1);
       if (state.remaining.length) refreshEatenBlocks(item.value);
       burst(item.x + item.w / 2, item.y + item.h / 2, '#fff06b');
-      playEatSfxThenSpeak(item.value);
+      playSfx('eat');
       if (!state.remaining.length) {
         state.transitioning = true;
         state.dino.transitionInvincibleUntil = now + 500;
@@ -1423,7 +1268,7 @@
       startEatAnimation(now);
       state.health -= 1;
       renderHealth();
-      playEatSfxThenSpeak(item.value);
+      playSfx('eat');
       if (state.health <= 0) finishRest();
     }
   }
@@ -1508,7 +1353,6 @@
     if (!state.running) return;
     state.running = false;
     cancelAnimationFrame(animationId);
-    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
     showScreen('restScreen');
     playSfx('fail');
   }
@@ -1824,8 +1668,6 @@
     $('gameScreen').classList.remove('trace-mode');
     $('traceNextButton').classList.remove('show');
     $('traceNextButton').disabled = true;
-    speechSequenceId += 1;
-    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
     controls.left = false; controls.right = false;
     showScreen('startScreen');
     stopBgm(true, () => startMainBgm(MAIN_BGM_FADE_IN_MS, true));
@@ -1834,7 +1676,6 @@
 
   function openSoundSettings() {
     restoreDraftFromCommitted('all');
-    updatePreferredVoice();
     showSoundSettingsView('soundMenuView');
     $('soundModal').classList.add('open');
     $('soundModal').setAttribute('aria-hidden', 'false');
@@ -1858,17 +1699,13 @@
       soundMenuView: '🔊 소리 설정',
       volumeView: '볼륨 설정',
       bgmView: '배경음악 설정',
-      ttsView: '글자 읽기 설정'
     };
     $('soundTitle').textContent = titles[id] || titles.soundMenuView;
   }
 
   const soundControlConfigs = {
     sfxVolume: { key: 'sfx', type: 'percent' },
-    ttsVolume: { key: 'tts', type: 'percent' },
     bgmVolume: { key: 'bgm', type: 'percent' },
-    ttsRate: { key: 'ttsRate', type: 'decimal' },
-    ttsPitch: { key: 'ttsPitch', type: 'decimal' }
   };
 
   function formatSoundValue(value, type) {
@@ -1914,8 +1751,6 @@
           updateBgmVolume();
           updateMainBgmVolume();
           if (bgmPreviewAudio) bgmPreviewAudio.volume = getBgmPreviewVolume();
-        } else if (config.key === 'ttsRate' || config.key === 'ttsPitch') {
-          updatePreferredVoice();
         }
       });
     });
@@ -1945,7 +1780,6 @@
     if (event.target.closest('label, input')) playSfx('click');
   });
   $('homeFromSuccessButton').addEventListener('click', returnToStart);
-  $('listenButton').addEventListener('click', speakCurrentTarget);
   $('playHomeButton').addEventListener('click', returnToStart);
   $('traceNextButton').addEventListener('click', goNextTrace);
   $('restartButton').addEventListener('click', restartPlayOnly);
@@ -1978,16 +1812,8 @@
     if ($('startScreen')?.classList.contains('active')) updateStartDinoMarchDistance();
   });
   document.addEventListener('visibilitychange', () => { if (state) state.lastTime = 0; });
-  if ('speechSynthesis' in window) {
-    updatePreferredVoice();
-    if (window.speechSynthesis.addEventListener) {
-      window.speechSynthesis.addEventListener('voiceschanged', updatePreferredVoice);
-    } else {
-      window.speechSynthesis.onvoiceschanged = updatePreferredVoice;
-    }
-  }
   initializeSoundControls();
-  initializeTtsVoiceTester();
+  preloadSfx();
   shuffleStartDinoMarch();
   startMainBgm(0, true).then((played) => {
     if (!played) addMainBgmUnlockListeners();
