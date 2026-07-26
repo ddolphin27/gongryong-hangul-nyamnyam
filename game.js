@@ -124,6 +124,7 @@
   const sfxCache = {};
   const sfxBufferPromises = {};
   let viewportResizeTimer = 0;
+  let lastViewportLogSignature = '';
   let lastDifficultySfxAt = 0;
 
   function loadSoundSettings() {
@@ -189,12 +190,79 @@
     if (sfxGainNode) sfxGainNode.gain.value = soundSettings.sfx;
   }
 
+  function isTextInputActive() {
+    const active = document.activeElement;
+    return active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement || active instanceof HTMLSelectElement;
+  }
+
+  function getViewportHeightForApp() {
+    const heights = [
+      window.innerHeight,
+      window.visualViewport?.height,
+      document.documentElement.clientHeight
+    ].filter((value) => Number.isFinite(value) && value > 0);
+    if (!heights.length) return 0;
+    if (isTextInputActive() && window.visualViewport?.height) return window.visualViewport.height;
+    return Math.max(...heights);
+  }
+
+  function getElementMetrics(element) {
+    if (!element) return null;
+    const rect = element.getBoundingClientRect();
+    const style = getComputedStyle(element);
+    return {
+      tag: element.tagName?.toLowerCase() || '',
+      id: element.id || '',
+      className: typeof element.className === 'string' ? element.className : '',
+      height: Math.round(rect.height),
+      top: Math.round(rect.top),
+      bottom: Math.round(rect.bottom),
+      backgroundColor: style.backgroundColor,
+      overflow: style.overflow,
+      position: style.position
+    };
+  }
+
+  function logViewportMetrics(reason, appHeight) {
+    const app = $('app');
+    const activeScreen = document.querySelector('.screen.active');
+    const bottomY = Math.max(0, Math.min((window.innerHeight || document.documentElement.clientHeight || 1) - 2, appHeight - 2));
+    const bottomElement = document.elementFromPoint(Math.max(1, Math.round(window.innerWidth / 2)), bottomY);
+    const metrics = {
+      reason,
+      windowInnerHeight: window.innerHeight,
+      visualViewportHeight: window.visualViewport?.height || null,
+      documentClientHeight: document.documentElement.clientHeight,
+      bodyRectHeight: Math.round(document.body.getBoundingClientRect().height),
+      appHeight,
+      cssAppHeight: getComputedStyle(document.documentElement).getPropertyValue('--app-height').trim(),
+      activeScreenId: activeScreen?.id || '',
+      activeScreenHeight: activeScreen ? Math.round(activeScreen.getBoundingClientRect().height) : null,
+      bottomElement: bottomElement ? `${bottomElement.tagName.toLowerCase()}#${bottomElement.id || ''}.${typeof bottomElement.className === 'string' ? bottomElement.className : ''}` : null,
+      htmlBackground: getComputedStyle(document.documentElement).backgroundColor,
+      bodyBackground: getComputedStyle(document.body).backgroundColor,
+      appBackground: app ? getComputedStyle(app).backgroundColor : null,
+      screenBackground: activeScreen ? getComputedStyle(activeScreen).backgroundColor : null
+    };
+    const signature = JSON.stringify(metrics);
+    if (signature === lastViewportLogSignature) return;
+    lastViewportLogSignature = signature;
+    console.groupCollapsed('[Dino viewport metrics]', reason);
+    console.table(metrics);
+    console.log('html', getElementMetrics(document.documentElement));
+    console.log('body', getElementMetrics(document.body));
+    console.log('app', getElementMetrics(app));
+    console.log('activeScreen', getElementMetrics(activeScreen));
+    console.log('bottomElement', getElementMetrics(bottomElement));
+    console.groupEnd();
+  }
+
   function updateAppHeight() {
-    const viewportHeight = window.visualViewport?.height || window.innerHeight || document.documentElement.clientHeight;
-    const height = viewportHeight;
+    const height = getViewportHeightForApp();
     if (height) document.documentElement.style.setProperty('--app-height', `${height}px`);
     resizeCanvas();
     if ($('startScreen')?.classList.contains('active')) updateStartDinoMarchDistance();
+    if (height) logViewportMetrics('updateAppHeight', height);
   }
 
   function scheduleAppHeightUpdate() {
