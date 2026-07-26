@@ -189,21 +189,9 @@
     if (sfxGainNode) sfxGainNode.gain.value = soundSettings.sfx;
   }
 
-  function getCssPixelValue(name) {
-    const raw = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-    const value = Number.parseFloat(raw);
-    return Number.isFinite(value) ? value : 0;
-  }
-
-  function isStandaloneDisplay() {
-    return window.navigator.standalone === true || window.matchMedia?.('(display-mode: standalone)').matches;
-  }
-
   function updateAppHeight() {
     const viewportHeight = window.visualViewport?.height || window.innerHeight || document.documentElement.clientHeight;
-    const safeBottom = getCssPixelValue('--safe-bottom');
-    const shouldSubtractSafeBottom = Boolean(window.visualViewport && isStandaloneDisplay() && safeBottom > 0);
-    const height = shouldSubtractSafeBottom ? viewportHeight - safeBottom : viewportHeight;
+    const height = viewportHeight;
     if (height) document.documentElement.style.setProperty('--app-height', `${height}px`);
     resizeCanvas();
     if ($('startScreen')?.classList.contains('active')) updateStartDinoMarchDistance();
@@ -657,9 +645,13 @@
 
   function showScreen(id) {
     const wasEndingScene = $('successScreen')?.classList.contains('active') || $('restScreen')?.classList.contains('active');
+    if (id === 'startScreen' && document.activeElement instanceof HTMLElement) document.activeElement.blur();
     screens.forEach((screen) => screen.classList.toggle('active', screen.id === id));
-    if (id === 'startScreen') shuffleStartDinoMarch();
-    if (id === 'startScreen') return;
+    if (id === 'startScreen') {
+      shuffleStartDinoMarch();
+      scheduleAppHeightUpdate();
+      return;
+    }
     const isEndingScene = id === 'successScreen' || id === 'restScreen';
     const fadeDuration = isEndingScene ? BGM_ENDING_FADE_MS : (wasEndingScene ? BGM_GAME_FADE_MS : 0);
     updateBgmVolume(fadeDuration);
@@ -746,7 +738,6 @@
       $('startMessage').textContent = '';
       void $('inputHelp').offsetWidth;
       $('inputHelp').classList.add('shake');
-      $('wordInput').focus();
       return;
     }
     $('startMessage').textContent = '';
@@ -1796,7 +1787,6 @@
     controls.left = false; controls.right = false;
     showScreen('startScreen');
     stopBgm(true, () => startMainBgm(MAIN_BGM_FADE_IN_MS, true));
-    $('wordInput').focus();
   }
 
   function openSoundSettings() {
