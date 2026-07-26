@@ -223,6 +223,24 @@
     };
   }
 
+  function getStartScreenMetrics() {
+    const startScreen = $('startScreen');
+    const dinoWrapper = document.querySelector('.start-dino-friends');
+    const dinoTrack = $('randomDinoTrack');
+    const firstDino = dinoTrack?.querySelector('img');
+    const startButton = $('startButton');
+    return {
+      startScreen: getElementMetrics(startScreen),
+      startButton: getElementMetrics(startButton),
+      dinoWrapper: getElementMetrics(dinoWrapper),
+      dinoTrack: getElementMetrics(dinoTrack),
+      firstDino: getElementMetrics(firstDino),
+      wrapperOverflow: dinoWrapper ? getComputedStyle(dinoWrapper).overflow : null,
+      trackOverflow: dinoTrack ? getComputedStyle(dinoTrack).overflow : null,
+      firstDinoParentClass: firstDino?.parentElement?.className || ''
+    };
+  }
+
   function logViewportMetrics(reason, appHeight) {
     const app = $('app');
     const activeScreen = document.querySelector('.screen.active');
@@ -254,6 +272,7 @@
     console.log('app', getElementMetrics(app));
     console.log('activeScreen', getElementMetrics(activeScreen));
     console.log('bottomElement', getElementMetrics(bottomElement));
+    if (activeScreen?.id === 'startScreen') console.log('startScreenDetails', getStartScreenMetrics());
     console.groupEnd();
   }
 

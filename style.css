@@ -100,7 +100,7 @@ h1 span { color: var(--yellow); }
 .sound-settings-button { position: absolute; z-index: 5; top: max(12px, env(safe-area-inset-top)); right: 14px; display: inline-flex; width: 48px; height: 48px; min-width: 44px; min-height: 44px; align-items: center; justify-content: center; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
 .sound-settings-button img { display: block; width: 38px; height: 38px; object-fit: contain; pointer-events: none; user-select: none; -webkit-user-drag: none; }
 .sound-settings-button:active { transform: translateY(2px) scale(.94); box-shadow: none; filter: brightness(1.03); }
-.start-dino-friends { position: relative; z-index: 1; width: min(100%, 500px); height: clamp(94px, 15.5vh, 120px); margin: 12px 0 2px; overflow: hidden; }
+.start-dino-friends { position: relative; z-index: 1; display: flex; flex: 1 1 auto; width: min(100%, 500px); min-height: clamp(94px, 15.5vh, 120px); height: auto; align-items: flex-end; margin: 12px 0 0; overflow: hidden; }
 .random-dino-track { display: flex; width: max-content; height: 100%; align-items: flex-end; gap: 24px; will-change: transform; animation: dinoMarch 6.5s linear infinite; }
 .random-dino-track img { display: block; flex: 0 0 auto; height: clamp(90px, 14.6vh, 112px); width: auto; object-fit: contain; pointer-events: none; user-select: none; -webkit-user-drag: none; transform-origin: 50% 100%; animation: dinoStep 1.65s ease-in-out infinite; }
 .random-dino-track img:nth-child(2n) { animation-delay: -.35s; animation-duration: 1.85s; }
@@ -264,7 +264,7 @@ h1 span { color: var(--yellow); }
   .difficulty b { font-size: 16px; }
   .big-button { min-height: 62px; margin-top: 11px; }
   .start-action { margin-top: 22px; }
-  .start-dino-friends { height: 86px; margin-top: 10px; }
+  .start-dino-friends { min-height: 86px; margin-top: 10px; }
   .random-dino-track img { height: 82px; }
   .rest-screen { padding-top: max(12px, env(safe-area-inset-top)); }
   .rest-screen h2 { position: relative; z-index: 2; margin-top: clamp(-54px, -7vh, -22px); }
@@ -299,7 +299,7 @@ h1 span { color: var(--yellow); }
   .start-screen .big-button { min-height: 66px; margin-top: 12px; font-size: 28px; }
   .sound-settings-button { top: max(9px, env(safe-area-inset-top)); right: 11px; width: 46px; height: 46px; }
   .sound-settings-button img { width: 36px; height: 36px; }
-  .start-dino-friends { height: 86px; margin-top: 7px; }
+  .start-dino-friends { min-height: 86px; margin-top: 7px; }
   .random-dino-track img { height: 82px; }
 }
 
@@ -320,7 +320,7 @@ h1 span { color: var(--yellow); }
   .start-screen .big-button { min-height: 56px; margin-top: 8px; border-radius: 19px; font-size: 25px; }
   .sound-settings-button { top: max(7px, env(safe-area-inset-top)); right: 9px; width: 44px; height: 44px; border-width: 0; box-shadow: none; }
   .sound-settings-button img { width: 34px; height: 34px; }
-  .start-dino-friends { height: 76px; margin-top: 3px; }
+  .start-dino-friends { min-height: 76px; margin-top: 3px; }
   .random-dino-track { gap: 20px; }
   .random-dino-track img { height: 72px; }
 }
@@ -339,7 +339,7 @@ h1 span { color: var(--yellow); }
   .start-action { margin-top: 9px; }
   .start-screen .big-button { min-height: 48px; margin-top: 5px; padding-block: 7px; font-size: 22px; }
   .sound-settings-button { top: max(5px, env(safe-area-inset-top)); right: 7px; width: 44px; height: 44px; }
-  .start-dino-friends { height: 64px; margin-top: 1px; }
+  .start-dino-friends { min-height: 64px; margin-top: 1px; }
   .random-dino-track { gap: 18px; }
   .random-dino-track img { height: 60px; }
 }
