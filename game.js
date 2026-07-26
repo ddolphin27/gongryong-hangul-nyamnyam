@@ -93,6 +93,7 @@
   const BGM_PREVIEW_MAIN_FADE_MS = 200;
   const SFX_PATHS = {
     click: 'audio/sfx/click.ogg',
+    start: 'audio/sfx/start.ogg',
     eat: 'audio/sfx/eat.ogg',
     good: 'audio/sfx/good.ogg',
     bad: 'audio/sfx/bad.ogg',
@@ -188,8 +189,21 @@
     if (sfxGainNode) sfxGainNode.gain.value = soundSettings.sfx;
   }
 
+  function getCssPixelValue(name) {
+    const raw = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    const value = Number.parseFloat(raw);
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  function isStandaloneDisplay() {
+    return window.navigator.standalone === true || window.matchMedia?.('(display-mode: standalone)').matches;
+  }
+
   function updateAppHeight() {
-    const height = window.visualViewport?.height || window.innerHeight || document.documentElement.clientHeight;
+    const viewportHeight = window.visualViewport?.height || window.innerHeight || document.documentElement.clientHeight;
+    const safeBottom = getCssPixelValue('--safe-bottom');
+    const shouldSubtractSafeBottom = Boolean(window.visualViewport && isStandaloneDisplay() && safeBottom > 0);
+    const height = shouldSubtractSafeBottom ? viewportHeight - safeBottom : viewportHeight;
     if (height) document.documentElement.style.setProperty('--app-height', `${height}px`);
     resizeCanvas();
     if ($('startScreen')?.classList.contains('active')) updateStartDinoMarchDistance();
@@ -736,6 +750,7 @@
       return;
     }
     $('startMessage').textContent = '';
+    playSfx('start');
     const difficulty = document.querySelector('input[name="difficulty"]:checked').value;
     const targets = [...word].map((char) => ({ char, jamo: decomposeHangul(char) }));
     const needed = targets.flatMap((target) => target.jamo);

@@ -8,7 +8,8 @@
   --pink: #ff6f91;
   --font-ui: "NanumSquareRound", "Arial Rounded MT Bold", "Noto Sans KR", Arial, sans-serif;
   --font-bold: "CookieRunBold", "NanumSquareRound", "Arial Rounded MT Bold", "Noto Sans KR", Arial, sans-serif;
-  --app-height: 100dvh;
+  --app-height: 100svh;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 @font-face {
