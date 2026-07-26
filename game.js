@@ -288,10 +288,73 @@
     };
   }
 
+  function getStartScreenLayoutRows() {
+    const pick = (name, element) => {
+      const metrics = getElementMetrics(element);
+      if (!metrics) return { name, missing: true };
+      return {
+        name,
+        tag: metrics.tag,
+        id: metrics.id,
+        className: metrics.className,
+        top: metrics.top,
+        bottom: metrics.bottom,
+        height: metrics.height,
+        width: metrics.width,
+        computedHeight: metrics.heightStyle,
+        minHeight: metrics.minHeight,
+        maxHeight: metrics.maxHeight,
+        overflow: metrics.overflow,
+        overflowX: metrics.overflowX,
+        overflowY: metrics.overflowY,
+        marginTop: metrics.marginTop,
+        marginBottom: metrics.marginBottom,
+        paddingTop: metrics.paddingTop,
+        paddingBottom: metrics.paddingBottom,
+        transform: metrics.transform,
+        zoom: metrics.zoom
+      };
+    };
+    const dinoImages = [...($('randomDinoTrack')?.querySelectorAll('img') || [])];
+    const bottomElement = document.elementFromPoint(
+      Math.max(1, Math.round(window.innerWidth / 2)),
+      Math.max(0, (window.innerHeight || document.documentElement.clientHeight || 1) - 10)
+    );
+    return [
+      {
+        name: 'Viewport',
+        innerHeight: window.innerHeight,
+        visualViewportHeight: window.visualViewport?.height || null,
+        documentClientHeight: document.documentElement.clientHeight,
+        devicePixelRatio: window.devicePixelRatio,
+        standalone: window.navigator.standalone === true || window.matchMedia?.('(display-mode: standalone)').matches,
+        cssAppHeight: getComputedStyle(document.documentElement).getPropertyValue('--app-height').trim(),
+        bottomPointElement: bottomElement ? `${bottomElement.tagName.toLowerCase()}#${bottomElement.id || ''}.${typeof bottomElement.className === 'string' ? bottomElement.className : ''}` : ''
+      },
+      pick('HTML', document.documentElement),
+      pick('BODY', document.body),
+      pick('#app', $('app')),
+      pick('#startScreen', $('startScreen')),
+      pick('logo #gameTitle', $('gameTitle')),
+      pick('guide .start-guide', document.querySelector('.start-guide')),
+      pick('input #wordInput', $('wordInput')),
+      pick('inputHelp #inputHelp', $('inputHelp')),
+      pick('difficulty .difficulty', document.querySelector('.difficulty')),
+      pick('difficulty legend', document.querySelector('.difficulty legend')),
+      pick('difficulty row', document.querySelector('.difficulty-row')),
+      pick('start button', $('startButton')),
+      pick('dino wrapper .start-dino-friends', document.querySelector('.start-dino-friends')),
+      pick('dino track #randomDinoTrack', $('randomDinoTrack')),
+      ...dinoImages.slice(0, 7).map((img, index) => pick(`dino image ${index + 1}`, img)),
+      pick('start message #startMessage', $('startMessage')),
+      pick('bottom point element', bottomElement)
+    ];
+  }
+
   function logViewportMetrics(reason, appHeight) {
     const app = $('app');
     const activeScreen = document.querySelector('.screen.active');
-    const bottomY = Math.max(0, Math.min((window.innerHeight || document.documentElement.clientHeight || 1) - 2, appHeight - 2));
+    const bottomY = Math.max(0, (window.innerHeight || document.documentElement.clientHeight || 1) - 10);
     const bottomElement = document.elementFromPoint(Math.max(1, Math.round(window.innerWidth / 2)), bottomY);
     const metrics = {
       reason,
@@ -319,7 +382,10 @@
     console.log('app', getElementMetrics(app));
     console.log('activeScreen', getElementMetrics(activeScreen));
     console.log('bottomElement', getElementMetrics(bottomElement));
-    if (activeScreen?.id === 'startScreen') console.log('startScreenDetails', getStartScreenMetrics());
+    if (activeScreen?.id === 'startScreen') {
+      console.table(getStartScreenLayoutRows());
+      console.log('startScreenDetails', getStartScreenMetrics());
+    }
     console.groupEnd();
   }
 
@@ -334,7 +400,9 @@
   window.dinoMeasureStartScreen = (label = 'manual') => {
     const height = getViewportHeightForApp();
     logViewportMetrics(label, height);
-    return getStartScreenMetrics();
+    const rows = getStartScreenLayoutRows();
+    console.table(rows);
+    return { rows, details: getStartScreenMetrics() };
   };
 
   function scheduleAppHeightUpdate() {
