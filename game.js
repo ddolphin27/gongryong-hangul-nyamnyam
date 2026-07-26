@@ -122,6 +122,8 @@
   const mediaSourceNodes = new WeakMap();
   const sfxCache = {};
   const sfxBufferPromises = {};
+  let viewportResizeTimer = 0;
+  let lastDifficultySfxAt = 0;
 
   function loadSoundSettings() {
     const ranges = {
@@ -184,6 +186,23 @@
 
   function applySfxGain() {
     if (sfxGainNode) sfxGainNode.gain.value = soundSettings.sfx;
+  }
+
+  function updateAppHeight() {
+    const height = window.visualViewport?.height || window.innerHeight || document.documentElement.clientHeight;
+    if (height) document.documentElement.style.setProperty('--app-height', `${height}px`);
+    resizeCanvas();
+    if ($('startScreen')?.classList.contains('active')) updateStartDinoMarchDistance();
+  }
+
+  function scheduleAppHeightUpdate() {
+    updateAppHeight();
+    requestAnimationFrame(() => {
+      updateAppHeight();
+      requestAnimationFrame(updateAppHeight);
+    });
+    clearTimeout(viewportResizeTimer);
+    viewportResizeTimer = setTimeout(updateAppHeight, 180);
   }
 
   function getActiveSoundViewId() {
@@ -592,6 +611,7 @@
   function playButtonClickSfx(event) {
     const button = event.target?.closest?.('button');
     if (!button || button.disabled) return;
+    if (event.target?.closest?.('.difficulty-row')) return;
     if (button.dataset.clickSound === 'false' || button.classList.contains('no-click-sfx')) return;
     ensureAudioContext();
     event.sfxPromise = playSfx('click');
@@ -1834,10 +1854,30 @@
   }
 
   $('startButton').addEventListener('click', startGame);
-  $('wordInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') startGame(); });
+  $('wordInput').addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    e.stopPropagation();
+    $('wordInput').blur();
+    scheduleAppHeightUpdate();
+  });
+  $('wordInput').addEventListener('blur', scheduleAppHeightUpdate);
   $('wordInput').addEventListener('input', (e) => { e.target.value = [...e.target.value].slice(0, 10).join(''); });
-  document.querySelector('.difficulty-row')?.addEventListener('click', (event) => {
-    if (event.target.closest('label, input')) playSfx('click');
+  document.querySelector('.difficulty-row')?.addEventListener('pointerup', (event) => {
+    const label = event.target.closest('label');
+    const input = label?.querySelector('input[name="difficulty"]');
+    if (!input) return;
+    event.preventDefault();
+    const wasChecked = input.checked;
+    if (!wasChecked) {
+      input.checked = true;
+      const now = performance.now();
+      if (now - lastDifficultySfxAt > 180) {
+        lastDifficultySfxAt = now;
+        ensureAudioContext();
+        playSfx('click');
+      }
+    }
   });
   $('homeFromSuccessButton').addEventListener('click', returnToStart);
   $('playHomeButton').addEventListener('click', returnToStart);
@@ -1868,13 +1908,16 @@
     if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') controls[e.key === 'ArrowLeft' ? 'left' : 'right'] = false;
   });
   window.addEventListener('resize', () => {
-    resizeCanvas();
-    if ($('startScreen')?.classList.contains('active')) updateStartDinoMarchDistance();
+    scheduleAppHeightUpdate();
   });
+  window.addEventListener('orientationchange', scheduleAppHeightUpdate);
+  window.visualViewport?.addEventListener('resize', scheduleAppHeightUpdate);
+  window.visualViewport?.addEventListener('scroll', scheduleAppHeightUpdate);
   document.addEventListener('visibilitychange', () => { if (state) state.lastTime = 0; });
   initializeSoundControls();
   preloadSfx();
   shuffleStartDinoMarch();
+  scheduleAppHeightUpdate();
   startMainBgm(0, true).then((played) => {
     if (!played) addMainBgmUnlockListeners();
   });

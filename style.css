@@ -8,6 +8,7 @@
   --pink: #ff6f91;
   --font-ui: "NanumSquareRound", "Arial Rounded MT Bold", "Noto Sans KR", Arial, sans-serif;
   --font-bold: "CookieRunBold", "NanumSquareRound", "Arial Rounded MT Bold", "Noto Sans KR", Arial, sans-serif;
+  --app-height: 100dvh;
 }
 
 @font-face {
@@ -29,7 +30,7 @@
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; }
+html, body { margin: 0; width: 100%; height: 100%; min-height: 100%; overflow: hidden; }
 body {
   color: var(--ink);
   background: #c7f3ee;
@@ -55,12 +56,12 @@ input, textarea, select {
   -webkit-touch-callout: default;
 }
 .sr-only { position: absolute !important; width: 1px !important; height: 1px !important; overflow: hidden !important; clip: rect(0 0 0 0) !important; clip-path: inset(50%) !important; white-space: nowrap !important; }
-#app { width: 100%; height: 100%; min-height: 100dvh; }
+#app { width: 100%; height: var(--app-height); min-height: var(--app-height); overflow: hidden; }
 .screen {
   display: none;
   width: 100%;
-  height: 100%;
-  min-height: 100dvh;
+  height: var(--app-height);
+  min-height: var(--app-height);
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
