@@ -102,6 +102,17 @@
   const MAIN_BGM_FADE_OUT_MS = 400;
   const MAIN_BGM_FADE_IN_MS = 500;
   const BGM_PREVIEW_MAIN_FADE_MS = 200;
+  const TTS_BGM_DUCK_MULTIPLIER = .62;
+  const TTS_BGM_DUCK_FADE_MS = 120;
+  const SFX_PATHS = {
+    click: 'audio/sfx/click.ogg',
+    eat: 'audio/sfx/eat.ogg',
+    good: 'audio/sfx/good.ogg',
+    bad: 'audio/sfx/bad.ogg',
+    resultStar: 'audio/sfx/result-star.ogg',
+    success: 'audio/sfx/success.ogg',
+    fail: 'audio/sfx/fail.ogg'
+  };
   let availableTtsVoices = [];
   let selectedVoiceURI = loadSelectedVoiceURI();
   let soundSettings = loadSoundSettings();
@@ -121,6 +132,10 @@
   let bgmFadeAnimationId = 0;
   let mainBgmFadeAnimationId = 0;
   let currentBgmMode = 'none';
+  let ttsVoiceRetryTimer = 0;
+  let ttsVoiceRetryCount = 0;
+  let ttsDucking = false;
+  const sfxCache = {};
 
   function loadSoundSettings() {
     const ranges = {
@@ -291,7 +306,8 @@
   }
 
   function updateBgmVolume(duration = 0) {
-    fadeBgmVolumeTo(getActualBgmVolume(), duration);
+    const volume = ttsDucking ? getDuckedBgmVolume(getActualBgmVolume()) : getActualBgmVolume();
+    fadeBgmVolumeTo(volume, duration);
   }
 
   function fadeMainBgmVolumeTo(targetVolume, duration = 0, onComplete) {
@@ -319,7 +335,28 @@
   }
 
   function updateMainBgmVolume(duration = 0) {
-    fadeMainBgmVolumeTo(getMainBgmVolume(), duration);
+    const volume = ttsDucking ? getDuckedBgmVolume(getMainBgmVolume()) : getMainBgmVolume();
+    fadeMainBgmVolumeTo(volume, duration);
+  }
+
+  function getDuckedBgmVolume(volume) {
+    return Math.max(0, Math.min(1, volume * TTS_BGM_DUCK_MULTIPLIER));
+  }
+
+  function beginTtsBgmDucking() {
+    if (ttsDucking) return;
+    ttsDucking = true;
+    if (currentBgmMode === 'game') fadeBgmVolumeTo(getDuckedBgmVolume(getActualBgmVolume()), TTS_BGM_DUCK_FADE_MS);
+    if (currentBgmMode === 'main') fadeMainBgmVolumeTo(getDuckedBgmVolume(getMainBgmVolume()), TTS_BGM_DUCK_FADE_MS);
+    if (bgmPreviewAudio) bgmPreviewAudio.volume = getDuckedBgmVolume(getBgmPreviewVolume());
+  }
+
+  function endTtsBgmDucking() {
+    if (!ttsDucking) return;
+    ttsDucking = false;
+    if (currentBgmMode === 'game') updateBgmVolume(TTS_BGM_DUCK_FADE_MS);
+    if (currentBgmMode === 'main') updateMainBgmVolume(TTS_BGM_DUCK_FADE_MS);
+    if (bgmPreviewAudio) bgmPreviewAudio.volume = getBgmPreviewVolume();
   }
 
   function createBgmPreviewAudio(track) {
@@ -693,7 +730,7 @@
     const config = SETTINGS[difficulty];
     const timeLimit = Math.min(word.length * config.secondsPerLetter, 600);
     clearTimeout(targetTransitionTimer);
-    speechSequenceId += 1;
+    cancelTts();
     state = {
       word, needed, targets, targetIndex: 0, remaining: [...targets[0].jamo], health: 5,
       difficulty, config, timeLimit,
@@ -749,9 +786,21 @@
   function updatePreferredVoice() {
     if (!('speechSynthesis' in window)) return;
     availableTtsVoices = window.speechSynthesis.getVoices();
+    if (!availableTtsVoices.length) {
+      renderTtsVoiceControls();
+      clearTimeout(ttsVoiceRetryTimer);
+      if (ttsVoiceRetryCount < 8) {
+        ttsVoiceRetryCount += 1;
+        ttsVoiceRetryTimer = setTimeout(updatePreferredVoice, 250);
+      }
+      return;
+    }
+    clearTimeout(ttsVoiceRetryTimer);
+    ttsVoiceRetryCount = 0;
+    const koreanKoKrVoices = availableTtsVoices.filter((voice) => /^ko[-_]kr$/i.test(voice.lang || ''));
     const koreanVoices = availableTtsVoices.filter((voice) => /^ko([-_]|$)/i.test(voice.lang || ''));
     const savedVoice = selectedVoiceURI ? availableTtsVoices.find((voice) => (voice.voiceURI || voice.name) === selectedVoiceURI) : null;
-    preferredKoreanVoice = savedVoice || koreanVoices[0] || availableTtsVoices[0] || null;
+    preferredKoreanVoice = savedVoice || koreanKoKrVoices[0] || koreanVoices[0] || availableTtsVoices[0] || null;
     if (selectedVoiceURI && !savedVoice && preferredKoreanVoice) {
       selectedVoiceURI = preferredKoreanVoice.voiceURI || preferredKoreanVoice.name || '';
       draftVoiceURI = selectedVoiceURI;
@@ -814,6 +863,8 @@
   }
 
   function speakTestSequence(words, pause = 260) {
+    speakTtsSequence(words, { pause, requireGameRunning: false });
+    return;
     if (!('speechSynthesis' in window) || !('SpeechSynthesisUtterance' in window)) return;
     try {
       updatePreferredVoice();
@@ -848,6 +899,8 @@
   }
 
   function speakSequence(words, pause = 240) {
+    speakTtsSequence(words, { pause, requireGameRunning: true });
+    return;
     if (!state || !state.running || !('speechSynthesis' in window) || !('SpeechSynthesisUtterance' in window)) return;
     try {
       updatePreferredVoice();
@@ -865,6 +918,47 @@
     } catch (_) { /* 음성 미지원 환경에서는 게임만 계속한다. */ }
   }
 
+  function speakTtsSequence(words, options = {}) {
+    const { pause = 240, requireGameRunning = true } = options;
+    if (requireGameRunning && (!state || !state.running)) return;
+    if (!('speechSynthesis' in window) || !('SpeechSynthesisUtterance' in window)) return;
+    try {
+      updatePreferredVoice();
+      const sequenceId = ++speechSequenceId;
+      window.speechSynthesis.cancel();
+      beginTtsBgmDucking();
+      let finished = false;
+      const finish = () => {
+        if (finished || sequenceId !== speechSequenceId) return;
+        finished = true;
+        endTtsBgmDucking();
+      };
+      const speakNext = (index) => {
+        if (sequenceId !== speechSequenceId || (requireGameRunning && !state?.running)) {
+          finish();
+          return;
+        }
+        if (index >= words.length) {
+          finish();
+          return;
+        }
+        const speech = createKoreanUtterance(words[index]);
+        const next = () => setTimeout(() => speakNext(index + 1), pause);
+        speech.onend = next;
+        speech.onerror = next;
+        window.speechSynthesis.speak(speech);
+      };
+      speakNext(0);
+    } catch (_) {
+      endTtsBgmDucking();
+    }
+  }
+
+  function cancelTts() {
+    cancelTts();
+    endTtsBgmDucking();
+  }
+
   function speakCurrentTarget() {
     if (!state?.running) return;
     const target = state.mode === 'trace' ? state.targets[state.traceIndex] : state.targets[state.targetIndex];
@@ -876,6 +970,22 @@
   }
 
   // 효과음은 파일이 없거나 볼륨이 0이면 조용히 건너뛰고, 필요하면 끝난 뒤 다음 동작을 이어간다.
+  function getSfxVolumeMultiplier(type) {
+    return type === 'bad' ? 1.15 : (type === 'resultStar' ? 1.2 : (type === 'fail' ? .85 : (type === 'success' ? .9 : 1)));
+  }
+
+  function preloadSfx() {
+    Object.entries(SFX_PATHS).forEach(([type, path]) => {
+      if (sfxCache[type]) return;
+      try {
+        const audio = new Audio(path);
+        audio.preload = 'auto';
+        audio.load?.();
+        sfxCache[type] = audio;
+      } catch (_) { /* SFX preload is optional. */ }
+    });
+  }
+
   function playSfx(type) {
     const paths = {
       click: 'audio/sfx/click.ogg',
@@ -886,12 +996,13 @@
       success: 'audio/sfx/success.ogg',
       fail: 'audio/sfx/fail.ogg'
     };
-    const path = paths[type];
+    const path = SFX_PATHS[type];
     if (!path || soundSettings.sfx <= 0) return Promise.resolve(false);
     return new Promise((resolve) => {
       try {
-        const audio = new Audio(path);
-        const volumeMultiplier = type === 'bad' ? 1.15 : (type === 'resultStar' ? 1.2 : (type === 'fail' ? .85 : (type === 'success' ? .9 : 1)));
+        if (!sfxCache[type]) preloadSfx();
+        const audio = sfxCache[type]?.cloneNode ? sfxCache[type].cloneNode(true) : new Audio(path);
+        const volumeMultiplier = getSfxVolumeMultiplier(type);
         audio.volume = Math.min(1, soundSettings.sfx * volumeMultiplier);
         const done = (played) => {
           audio.onended = null;
@@ -944,8 +1055,7 @@
       return;
     }
     clearTimeout(targetTransitionTimer);
-    speechSequenceId += 1;
-    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+    cancelTts();
     state.running = true;
     state.mode = 'play';
     state.targetIndex = 0;
@@ -1508,7 +1618,7 @@
     if (!state.running) return;
     state.running = false;
     cancelAnimationFrame(animationId);
-    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+    cancelTts();
     showScreen('restScreen');
     playSfx('fail');
   }
@@ -1824,8 +1934,7 @@
     $('gameScreen').classList.remove('trace-mode');
     $('traceNextButton').classList.remove('show');
     $('traceNextButton').disabled = true;
-    speechSequenceId += 1;
-    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+    cancelTts();
     controls.left = false; controls.right = false;
     showScreen('startScreen');
     stopBgm(true, () => startMainBgm(MAIN_BGM_FADE_IN_MS, true));
@@ -1988,6 +2097,7 @@
   }
   initializeSoundControls();
   initializeTtsVoiceTester();
+  preloadSfx();
   shuffleStartDinoMarch();
   startMainBgm(0, true).then((played) => {
     if (!played) addMainBgmUnlockListeners();

@@ -1,0 +1,26 @@
+{
+  "name": "공룡 한글 냠냠",
+  "short_name": "한글 냠냠",
+  "description": "아이와 함께 한글 자모를 먹으며 배우는 공룡 게임",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["fullscreen", "standalone", "minimal-ui"],
+  "orientation": "portrait",
+  "background_color": "#c7f3ee",
+  "theme_color": "#63cdda",
+  "icons": [
+    {
+      "src": "images/icon/volume.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "images/dino/success.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
