@@ -838,11 +838,43 @@
     const path = SFX_PATHS[type];
     if (!path || soundSettings.sfx <= 0) return Promise.resolve(false);
     return new Promise((resolve) => {
+      let settled = false;
+      const finish = (value) => {
+        if (settled) return;
+        settled = true;
+        resolve(value);
+      };
+      const playMediaFallback = () => {
+        try {
+          const context = ensureAudioContext();
+          const audio = new Audio(path);
+          const gainValue = Math.min(1, getSfxVolumeMultiplier(type));
+          audio.preload = 'auto';
+          audio.volume = Math.min(1, soundSettings.sfx * gainValue);
+          audio.addEventListener('ended', () => finish(true), { once: true });
+          audio.addEventListener('error', () => finish(false), { once: true });
+          if (context && sfxGainNode) {
+            try {
+              const gain = context.createGain();
+              gain.gain.value = gainValue;
+              const source = context.createMediaElementSource(audio);
+              audio.volume = 1;
+              source.connect(gain);
+              gain.connect(sfxGainNode);
+            } catch (_) {
+              audio.volume = Math.min(1, soundSettings.sfx * gainValue);
+            }
+          }
+          audio.play().catch(() => finish(false));
+        } catch (_) {
+          finish(false);
+        }
+      };
       try {
         const context = ensureAudioContext();
         const playBuffer = (buffer) => {
           if (!context || !buffer || !sfxGainNode) {
-            resolve(false);
+            playMediaFallback();
             return;
           }
           const source = context.createBufferSource();
@@ -851,7 +883,7 @@
           source.buffer = buffer;
           source.connect(gain);
           gain.connect(sfxGainNode);
-          source.onended = () => resolve(true);
+          source.onended = () => finish(true);
           source.start(0);
         };
         if (sfxCache[type]) {
@@ -860,7 +892,7 @@
         }
         loadSfxBuffer(type, path).then(playBuffer);
       } catch (_) {
-        resolve(false);
+        playMediaFallback();
       }
     });
   }
