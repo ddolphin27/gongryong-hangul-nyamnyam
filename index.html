@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#63cdda">
+  <title>공룡 한글 냠냠</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main id="app">
+    <!-- 부모가 오늘의 단어와 난이도를 고르는 시작 화면 -->
+    <section id="startScreen" class="screen start-screen active" aria-labelledby="gameTitle">
+      <div class="cloud cloud-a"></div><div class="cloud cloud-b"></div>
+      <h1 id="gameTitle">공룡 한글<br><span>냠냠!</span></h1>
+      <p class="start-guide">오늘 먹을 한글을 알려 주세요</p>
+      <input id="wordInput" type="text" maxlength="10" inputmode="text" autocomplete="off"
+             value="슈퍼유하준" aria-describedby="inputHelp">
+      <p id="inputHelp" class="input-help">한글 10글자까지 입력할 수 있어요</p>
+
+      <fieldset class="difficulty">
+        <legend>어떻게 먹을까?</legend>
+        <div class="difficulty-row">
+          <label><input type="radio" name="difficulty" value="easy" checked><span>🐣</span></label>
+          <label><input type="radio" name="difficulty" value="normal"><span>🦖</span></label>
+          <label><input type="radio" name="difficulty" value="hard"><span>🔥</span></label>
+        </div>
+      </fieldset>
+      <button id="startButton" class="big-button primary start-action">🍖 먹으러가자!</button>
+      <button id="soundSettingsButton" class="sound-settings-button" type="button" aria-label="소리 설정" title="소리 설정">
+        <img src="images/icon/volume.png" alt="" aria-hidden="true" draggable="false">
+      </button>
+      <div class="start-dino-friends" aria-hidden="true">
+        <div id="randomDinoTrack" class="random-dino-track"></div>
+      </div>
+      <p id="startMessage" class="message" role="alert" aria-live="polite"></p>
+    </section>
+
+    <!-- 실제 게임: 상태판 + 캔버스 + 모바일 이동 버튼 -->
+    <section id="gameScreen" class="screen game-screen" aria-label="게임 화면">
+      <header class="mission-board">
+        <button id="traceNextButton" class="trace-next-button" type="button" aria-label="다음 글자" title="다음 글자">
+          <img src="images/icon/next.png" alt="" aria-hidden="true" draggable="false">
+        </button>
+        <div class="mission-top">
+          <div><small>오늘의 미션</small><strong id="missionWord"></strong></div>
+          <div id="healthHearts" class="health-hearts" aria-label="체력 5칸"></div>
+        </div>
+        <div class="target-row">
+          <div class="target-learning">
+            <span class="remaining-title">지금 먹을 글자</span>
+            <div id="remainingJamo" class="jamo-list" aria-live="polite"></div>
+          </div>
+          <div class="target-actions">
+            <button id="listenButton" class="listen-button" type="button" aria-label="다시 듣기" title="다시 듣기">
+              <img src="images/icon/replay.png" alt="" aria-hidden="true" draggable="false">
+            </button>
+            <button id="playHomeButton" class="play-home-button" type="button" aria-label="처음으로" title="처음으로">
+              <img src="images/icon/home.png" alt="" aria-hidden="true" draggable="false">
+            </button>
+          </div>
+        </div>
+      </header>
+      <div id="canvasWrap">
+        <canvas id="gameCanvas" aria-label="하늘에서 한글 블록이 떨어지는 게임"></canvas>
+        <div id="reaction" class="reaction" aria-live="assertive"></div>
+      </div>
+      <div class="mobile-controls" aria-label="공룡 움직이기">
+        <button id="leftButton" class="no-click-sfx" data-click-sound="false" aria-label="왼쪽으로 이동">◀</button>
+        <button id="rightButton" class="no-click-sfx" data-click-sound="false" aria-label="오른쪽으로 이동">▶</button>
+      </div>
+    </section>
+
+    <!-- 체력이 모두 줄어도 무섭지 않게 잠깐 쉬어 가는 화면 -->
+    <section id="restScreen" class="screen rest-screen" aria-labelledby="restTitle">
+      <img class="sleepy-dino" src="images/dino/tummyache.png" alt="" aria-hidden="true">
+      <h2 id="restTitle">으악,<br>너무 배불러!</h2>
+      <p>공룡이 너무 많이 먹어서<br>잠깐 쉬고 싶대요.<br><span class="rest-spacer" aria-hidden="true">&nbsp;</span></p>
+      <button id="restartButton" class="big-button primary">다시하기</button>
+      <button id="homeFromRestButton" class="big-button secondary">처음으로</button>
+    </section>
+
+    <!-- 모든 글자를 완성하면 보여 주는 성공 카드 -->
+    <section id="successScreen" class="screen result-screen" aria-labelledby="successTitle">
+      <div id="successCard" class="success-card">
+        <span id="successTitle" class="sr-only">성공</span>
+        <strong id="successWord" class="sr-only"></strong>
+        <div class="success-photo-frame">
+          <div class="success-character-wrap" aria-hidden="true">
+            <img class="success-dino" src="images/dino/success.png" alt="" draggable="false">
+          </div>
+          <div class="success-photo-window">
+            <img id="successPhoto" alt="오늘의 미션 성공 사진">
+          </div>
+          <img class="success-frame" src="images/frame/dino.png" alt="" aria-hidden="true" draggable="false">
+        </div>
+        <div id="starRow" class="stars" aria-label="획득한 별">
+          <span>★</span><span>★</span><span>★</span>
+        </div>
+      </div>
+      <div class="success-actions">
+        <button id="homeFromSuccessButton" class="big-button secondary">처음으로</button>
+      </div>
+    </section>
+
+    <!-- 부모에게 바로 보여 주는 칭찬 카드 -->
+    <section id="bragScreen" class="screen brag-screen" aria-labelledby="heroTitle">
+      <div class="hero-rays" aria-hidden="true"></div>
+      <div class="hero-medal" aria-hidden="true">🏅</div>
+      <h2 id="heroTitle">오늘의<br>슈퍼히어로!</h2>
+      <p>나는 이 단어를 완성했어요!</p>
+      <strong id="bragWord" class="brag-word"></strong>
+      <div id="bragStars" class="brag-stars"></div>
+      <p class="praise">정말 멋졌어요!<br>우리 한글 박사 최고! 💛</p>
+      <button id="homeButton" class="big-button primary">처음으로</button>
+    </section>
+
+    <!-- 세 종류의 소리를 각각 조절하는 설정 팝업 -->
+    <div id="soundModal" class="sound-modal" aria-hidden="true">
+      <div class="sound-dialog" role="dialog" aria-modal="true" aria-labelledby="soundTitle">
+        <button id="closeSoundButton" class="modal-close" type="button" aria-label="소리 설정 닫기">×</button>
+        <h2 id="soundTitle">🔊 소리 설정</h2>
+        <section id="soundMenuView" class="sound-view active">
+          <button class="sound-menu-button" type="button" data-sound-view="volumeView">볼륨 설정</button>
+          <button class="sound-menu-button" type="button" data-sound-view="bgmView">배경음악 설정</button>
+          <button class="sound-menu-button" type="button" data-sound-view="ttsView">글자 읽기 설정</button>
+        </section>
+
+        <section id="volumeView" class="sound-view">
+          <button class="sound-back-button" type="button" data-sound-view="soundMenuView">뒤로</button>
+          <label class="volume-control" for="sfxVolume">
+            <span>효과음 <output id="sfxVolumeValue">70%</output></span>
+            <input id="sfxVolume" type="range" min="0" max="100" step="1" value="70">
+          </label>
+          <label class="volume-control" for="ttsVolume">
+            <span>글자 읽기 <output id="ttsVolumeValue">100%</output></span>
+            <input id="ttsVolume" type="range" min="0" max="100" step="1" value="100">
+          </label>
+          <label class="volume-control" for="bgmVolume">
+            <span>배경음악 <output id="bgmVolumeValue">50%</output></span>
+            <input id="bgmVolume" type="range" min="0" max="100" step="1" value="50">
+          </label>
+        </section>
+
+        <section id="bgmView" class="sound-view">
+          <button class="sound-back-button" type="button" data-sound-view="soundMenuView">뒤로</button>
+          <div class="bgm-choice-list" aria-label="배경음악 선택">
+            <label><input type="radio" name="bgmChoice" value="001"><span>슈퍼파워 히어로</span></label>
+            <label><input type="radio" name="bgmChoice" value="002"><span>엄마랑 한글공부</span></label>
+            <label><input type="radio" name="bgmChoice" value="003"><span>변신 합체 출동</span></label>
+            <label><input type="radio" name="bgmChoice" value="004"><span>공룡이랑 같이 놀자</span></label>
+            <label><input type="radio" name="bgmChoice" value="005"><span>방구요정 뿡뿡뿡</span></label>
+            <label><input type="radio" name="bgmChoice" value="random"><span>랜덤 반복</span></label>
+          </div>
+        </section>
+
+        <section id="ttsView" class="sound-view voice-test-panel" aria-label="TTS 음성 선택">
+          <button class="sound-back-button" type="button" data-sound-view="soundMenuView">뒤로</button>
+          <h3>TTS 음성</h3>
+          <label class="voice-select-label" for="ttsVoiceSelect">
+            <span>글자 읽기 목소리</span>
+            <select id="ttsVoiceSelect"></select>
+          </label>
+          <label class="volume-control tts-detail-control" for="ttsRate">
+            <span>읽기 속도 <output id="ttsRateValue">0.90</output></span>
+            <input id="ttsRate" type="range" min="0.7" max="1.3" step="0.05" value="0.9">
+          </label>
+          <label class="volume-control tts-detail-control" for="ttsPitch">
+            <span>목소리 높이 <output id="ttsPitchValue">1.15</output></span>
+            <input id="ttsPitch" type="range" min="0.7" max="1.6" step="0.05" value="1.15">
+          </label>
+          <div class="voice-test-buttons" aria-label="TTS 테스트">
+            <button type="button" data-tts-jamo="ㄱㄴㄷ">ㄱ, ㄴ, ㄷ</button>
+            <button type="button" data-tts-jamo="ㅌㅊㅍ">ㅌ, ㅊ, ㅍ</button>
+            <button type="button" data-tts-jamo="ㄲㄸㅃ">ㄲ, ㄸ, ㅃ</button>
+            <button type="button" data-tts-jamo="ㅏㅔㅗ">ㅏ, ㅔ, ㅗ</button>
+            <button type="button" data-tts-test="슈퍼유하준">슈퍼유하준</button>
+          </div>
+          <button id="resetTtsButton" class="tts-reset-button" type="button">기본값으로</button>
+        </section>
+        <button id="doneSoundButton" class="modal-done" type="button">설정 완료</button>
+      </div>
+    </div>
+  </main>
+  <script src="game.js"></script>
+</body>
+</html>
