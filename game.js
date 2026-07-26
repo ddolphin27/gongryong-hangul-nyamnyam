@@ -214,30 +214,77 @@
       tag: element.tagName?.toLowerCase() || '',
       id: element.id || '',
       className: typeof element.className === 'string' ? element.className : '',
+      width: Math.round(rect.width),
       height: Math.round(rect.height),
+      left: Math.round(rect.left),
+      right: Math.round(rect.right),
       top: Math.round(rect.top),
       bottom: Math.round(rect.bottom),
       backgroundColor: style.backgroundColor,
       overflow: style.overflow,
-      position: style.position
+      overflowX: style.overflowX,
+      overflowY: style.overflowY,
+      position: style.position,
+      display: style.display,
+      flex: style.flex,
+      alignItems: style.alignItems,
+      heightStyle: style.height,
+      minHeight: style.minHeight,
+      maxHeight: style.maxHeight,
+      marginTop: style.marginTop,
+      marginBottom: style.marginBottom,
+      paddingTop: style.paddingTop,
+      paddingBottom: style.paddingBottom,
+      fontSize: style.fontSize,
+      lineHeight: style.lineHeight,
+      transform: style.transform,
+      zoom: style.zoom || ''
     };
   }
 
   function getStartScreenMetrics() {
     const startScreen = $('startScreen');
+    const logo = $('gameTitle');
+    const guide = document.querySelector('.start-guide');
+    const wordInput = $('wordInput');
+    const inputHelp = $('inputHelp');
+    const difficulty = document.querySelector('.difficulty');
+    const difficultyLegend = document.querySelector('.difficulty legend');
+    const difficultyRow = document.querySelector('.difficulty-row');
+    const difficultyCards = [...document.querySelectorAll('.difficulty span')];
     const dinoWrapper = document.querySelector('.start-dino-friends');
     const dinoTrack = $('randomDinoTrack');
-    const firstDino = dinoTrack?.querySelector('img');
+    const dinoImages = [...(dinoTrack?.querySelectorAll('img') || [])];
     const startButton = $('startButton');
     return {
+      viewport: {
+        innerHeight: window.innerHeight,
+        visualViewportHeight: window.visualViewport?.height || null,
+        documentClientHeight: document.documentElement.clientHeight,
+        cssAppHeight: getComputedStyle(document.documentElement).getPropertyValue('--app-height').trim(),
+        standalone: window.navigator.standalone === true || window.matchMedia?.('(display-mode: standalone)').matches
+      },
+      vhProbe: {
+        titleClampFontSize: getComputedStyle(logo).fontSize,
+        dinoWrapperMinHeight: dinoWrapper ? getComputedStyle(dinoWrapper).minHeight : null,
+        dinoImageHeight: dinoImages[0] ? getComputedStyle(dinoImages[0]).height : null
+      },
       startScreen: getElementMetrics(startScreen),
+      logo: getElementMetrics(logo),
+      guide: getElementMetrics(guide),
+      wordInput: getElementMetrics(wordInput),
+      inputHelp: getElementMetrics(inputHelp),
+      difficulty: getElementMetrics(difficulty),
+      difficultyLegend: getElementMetrics(difficultyLegend),
+      difficultyRow: getElementMetrics(difficultyRow),
+      difficultyCards: difficultyCards.map(getElementMetrics),
       startButton: getElementMetrics(startButton),
       dinoWrapper: getElementMetrics(dinoWrapper),
       dinoTrack: getElementMetrics(dinoTrack),
-      firstDino: getElementMetrics(firstDino),
+      dinoImages: dinoImages.slice(0, 7).map(getElementMetrics),
       wrapperOverflow: dinoWrapper ? getComputedStyle(dinoWrapper).overflow : null,
       trackOverflow: dinoTrack ? getComputedStyle(dinoTrack).overflow : null,
-      firstDinoParentClass: firstDino?.parentElement?.className || ''
+      firstDinoParentClass: dinoImages[0]?.parentElement?.className || ''
     };
   }
 
@@ -283,6 +330,12 @@
     if ($('startScreen')?.classList.contains('active')) updateStartDinoMarchDistance();
     if (height) logViewportMetrics('updateAppHeight', height);
   }
+
+  window.dinoMeasureStartScreen = (label = 'manual') => {
+    const height = getViewportHeightForApp();
+    logViewportMetrics(label, height);
+    return getStartScreenMetrics();
+  };
 
   function scheduleAppHeightUpdate() {
     updateAppHeight();

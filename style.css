@@ -100,7 +100,7 @@ h1 span { color: var(--yellow); }
 .sound-settings-button { position: absolute; z-index: 5; top: max(12px, env(safe-area-inset-top)); right: 14px; display: inline-flex; width: 48px; height: 48px; min-width: 44px; min-height: 44px; align-items: center; justify-content: center; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
 .sound-settings-button img { display: block; width: 38px; height: 38px; object-fit: contain; pointer-events: none; user-select: none; -webkit-user-drag: none; }
 .sound-settings-button:active { transform: translateY(2px) scale(.94); box-shadow: none; filter: brightness(1.03); }
-.start-dino-friends { position: relative; z-index: 1; display: flex; flex: 1 1 auto; width: min(100%, 500px); min-height: clamp(94px, 15.5vh, 120px); height: auto; align-items: flex-end; margin: 12px 0 0; overflow: hidden; }
+.start-dino-friends { position: relative; z-index: 1; display: flex; flex: 1 1 auto; width: min(100%, 500px); min-height: clamp(94px, 15.5vh, 120px); height: auto; align-items: flex-end; margin: 12px 0 0; overflow: visible; }
 .random-dino-track { display: flex; width: max-content; height: 100%; align-items: flex-end; gap: 24px; will-change: transform; animation: dinoMarch 6.5s linear infinite; }
 .random-dino-track img { display: block; flex: 0 0 auto; height: clamp(90px, 14.6vh, 112px); width: auto; object-fit: contain; pointer-events: none; user-select: none; -webkit-user-drag: none; transform-origin: 50% 100%; animation: dinoStep 1.65s ease-in-out infinite; }
 .random-dino-track img:nth-child(2n) { animation-delay: -.35s; animation-duration: 1.85s; }
