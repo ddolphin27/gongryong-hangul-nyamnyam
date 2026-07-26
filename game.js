@@ -115,7 +115,13 @@
   let bgmFadeAnimationId = 0;
   let mainBgmFadeAnimationId = 0;
   let currentBgmMode = 'none';
+  let audioContext = null;
+  let bgmGainNode = null;
+  let sfxGainNode = null;
+  let currentBgmGain = 0;
+  const mediaSourceNodes = new WeakMap();
   const sfxCache = {};
+  const sfxBufferPromises = {};
 
   function loadSoundSettings() {
     const ranges = {
@@ -139,6 +145,47 @@
     try { localStorage.setItem(SOUND_STORAGE_KEY, JSON.stringify(soundSettings)); } catch (_) { /* 저장이 제한돼도 게임은 계속된다. */ }
   }
 
+  function getAudioContext() {
+    if (audioContext) return audioContext;
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) return null;
+    try {
+      audioContext = new AudioContextClass();
+      bgmGainNode = audioContext.createGain();
+      sfxGainNode = audioContext.createGain();
+      bgmGainNode.gain.value = currentBgmGain;
+      sfxGainNode.gain.value = soundSettings.sfx;
+      bgmGainNode.connect(audioContext.destination);
+      sfxGainNode.connect(audioContext.destination);
+      return audioContext;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function ensureAudioContext() {
+    const context = getAudioContext();
+    if (context?.state === 'suspended') context.resume().catch(() => {});
+    return context;
+  }
+
+  function connectBgmElement(audio) {
+    const context = getAudioContext();
+    if (!context || !audio || mediaSourceNodes.has(audio)) return;
+    try {
+      const source = context.createMediaElementSource(audio);
+      source.connect(bgmGainNode);
+      mediaSourceNodes.set(audio, source);
+      audio.volume = 1;
+    } catch (_) {
+      audio.volume = currentBgmGain;
+    }
+  }
+
+  function applySfxGain() {
+    if (sfxGainNode) sfxGainNode.gain.value = soundSettings.sfx;
+  }
+
   function getActiveSoundViewId() {
     return document.querySelector('.sound-view.active')?.id || 'soundMenuView';
   }
@@ -158,8 +205,9 @@
     if (fields.includes('bgm')) {
       updateBgmVolume();
       updateMainBgmVolume();
-      if (bgmPreviewAudio) bgmPreviewAudio.volume = getBgmPreviewVolume();
+      if (bgmPreviewAudio) updateBgmVolume();
     }
+    if (fields.includes('sfx')) applySfxGain();
   }
 
   function restoreDraftFromCommitted(viewId = 'all') {
@@ -170,7 +218,8 @@
     syncSoundControls();
     updateBgmVolume();
     updateMainBgmVolume();
-    if (bgmPreviewAudio) bgmPreviewAudio.volume = getBgmPreviewVolume();
+    if (bgmPreviewAudio) updateBgmVolume();
+    applySfxGain();
   }
 
   function commitDraftSettings(viewId) {
@@ -182,14 +231,16 @@
     syncBgmChoiceControls();
     updateBgmVolume();
     updateMainBgmVolume();
-    if (bgmPreviewAudio) bgmPreviewAudio.volume = getBgmPreviewVolume();
+    if (bgmPreviewAudio) updateBgmVolume();
+    applySfxGain();
   }
 
   function createBgmAudio(track) {
     const audio = new Audio(track.src);
     audio.preload = 'auto';
-    audio.volume = getActualBgmVolume();
+    audio.volume = 1;
     audio.dataset.trackId = track.id;
+    connectBgmElement(audio);
     return audio;
   }
 
@@ -197,8 +248,9 @@
     const audio = new Audio(MAIN_BGM_TRACK.src);
     audio.preload = 'auto';
     audio.loop = true;
-    audio.volume = getMainBgmVolume();
+    audio.volume = 1;
     audio.dataset.trackId = MAIN_BGM_TRACK.id;
+    connectBgmElement(audio);
     return audio;
   }
 
@@ -235,13 +287,15 @@
   }
 
   function applyBgmVolume(volume) {
-    if (bgmAudio) bgmAudio.volume = volume;
-    if (nextBgmAudio) nextBgmAudio.volume = volume;
-    if (bgmPreviewAudio) bgmPreviewAudio.volume = getBgmPreviewVolume();
+    currentBgmGain = Math.max(0, Math.min(1, volume));
+    if (bgmGainNode) bgmGainNode.gain.value = currentBgmGain;
+    [bgmAudio, nextBgmAudio, bgmPreviewAudio].filter(Boolean).forEach(connectBgmElement);
   }
 
   function applyMainBgmVolume(volume) {
-    if (mainBgmAudio) mainBgmAudio.volume = volume;
+    currentBgmGain = Math.max(0, Math.min(1, volume));
+    if (bgmGainNode) bgmGainNode.gain.value = currentBgmGain;
+    if (mainBgmAudio) connectBgmElement(mainBgmAudio);
   }
 
   function fadeBgmVolumeTo(targetVolume, duration = 0, onComplete) {
@@ -253,13 +307,11 @@
       return;
     }
     const startTime = performance.now();
-    const startVolumes = targets.map((audio) => audio.volume);
+    const startVolume = currentBgmGain;
     const step = (now) => {
       const progress = Math.min(1, (now - startTime) / duration);
       const eased = 1 - Math.pow(1 - progress, 3);
-      targets.forEach((audio, index) => {
-        audio.volume = startVolumes[index] + (targetVolume - startVolumes[index]) * eased;
-      });
+      applyBgmVolume(startVolume + (targetVolume - startVolume) * eased);
       if (progress < 1) {
         bgmFadeAnimationId = requestAnimationFrame(step);
       } else {
@@ -283,11 +335,11 @@
       return;
     }
     const startTime = performance.now();
-    const startVolume = mainBgmAudio.volume;
+    const startVolume = currentBgmGain;
     const step = (now) => {
       const progress = Math.min(1, (now - startTime) / duration);
       const eased = 1 - Math.pow(1 - progress, 3);
-      mainBgmAudio.volume = startVolume + (targetVolume - startVolume) * eased;
+      applyMainBgmVolume(startVolume + (targetVolume - startVolume) * eased);
       if (progress < 1) {
         mainBgmFadeAnimationId = requestAnimationFrame(step);
       } else {
@@ -306,8 +358,9 @@
   function createBgmPreviewAudio(track) {
     const audio = new Audio(track.src);
     audio.preload = 'auto';
-    audio.volume = getBgmPreviewVolume();
+    audio.volume = 1;
     audio.dataset.trackId = track.id;
+    connectBgmElement(audio);
     return audio;
   }
 
@@ -337,7 +390,7 @@
       updateMainBgmVolume(BGM_PREVIEW_MAIN_FADE_MS);
       return;
     }
-    mainBgmAudio.volume = 0;
+    applyMainBgmVolume(0);
     currentBgmMode = 'main';
     mainBgmAudio.play()
       .then(() => updateMainBgmVolume(BGM_PREVIEW_MAIN_FADE_MS))
@@ -420,7 +473,7 @@
     }
     bgmAudio = nextBgmAudio?.dataset.trackId === track.id ? nextBgmAudio : createBgmAudio(track);
     nextBgmAudio = null;
-    bgmAudio.volume = fadeIn ? 0 : getActualBgmVolume();
+    applyBgmVolume(fadeIn ? 0 : getActualBgmVolume());
     bgmAudio.loop = soundSettings.bgmChoice !== 'random';
     bgmAudio.onended = () => {
       if (!bgmSessionActive || soundSettings.bgmChoice !== 'random') return;
@@ -436,6 +489,7 @@
   }
 
   function startBgm(fadeIn = false) {
+    ensureAudioContext();
     bgmSessionActive = true;
     cancelBgmFade();
     if (bgmAudio && !bgmAudio.paused) {
@@ -480,12 +534,13 @@
 
   function startMainBgm(fadeIn = 0, restart = false) {
     if (!$('startScreen')?.classList.contains('active')) return Promise.resolve(false);
+    ensureAudioContext();
     stopBgm(false);
     cancelMainBgmFade();
     if (!mainBgmAudio) mainBgmAudio = createMainBgmAudio();
     if (restart) mainBgmAudio.currentTime = 0;
     mainBgmAudio.loop = true;
-    mainBgmAudio.volume = fadeIn ? 0 : getMainBgmVolume();
+    applyMainBgmVolume(fadeIn ? 0 : getMainBgmVolume());
     currentBgmMode = 'main';
     return mainBgmAudio.play()
       .then(() => {
@@ -530,6 +585,7 @@
     if (!$('startScreen')?.classList.contains('active')) return;
     if (event?.target?.closest?.('#startButton')) return;
     if (mainBgmAudio && !mainBgmAudio.paused) return;
+    ensureAudioContext();
     startMainBgm(MAIN_BGM_FADE_IN_MS, false);
   }
 
@@ -537,6 +593,7 @@
     const button = event.target?.closest?.('button');
     if (!button || button.disabled) return;
     if (button.dataset.clickSound === 'false' || button.classList.contains('no-click-sfx')) return;
+    ensureAudioContext();
     event.sfxPromise = playSfx('click');
   }
 
@@ -646,6 +703,8 @@
   }
 
   function startGame() {
+    ensureAudioContext();
+    preloadSfx();
     const word = cleanWord($('wordInput').value);
     $('wordInput').value = word;
     $('inputHelp').classList.remove('shake');
@@ -720,52 +779,51 @@
 
   function preloadSfx() {
     Object.entries(SFX_PATHS).forEach(([type, path]) => {
-      if (sfxCache[type]) return;
-      try {
-        const audio = new Audio(path);
-        audio.preload = 'auto';
-        audio.load?.();
-        sfxCache[type] = audio;
-      } catch (_) { /* SFX preload is optional. */ }
+      loadSfxBuffer(type, path);
     });
   }
 
+  function loadSfxBuffer(type, path = SFX_PATHS[type]) {
+    if (!path || sfxCache[type]) return Promise.resolve(sfxCache[type]);
+    if (sfxBufferPromises[type]) return sfxBufferPromises[type];
+    const context = getAudioContext();
+    if (!context) return Promise.resolve(null);
+    sfxBufferPromises[type] = fetch(path)
+      .then((response) => response.arrayBuffer())
+      .then((arrayBuffer) => context.decodeAudioData(arrayBuffer))
+      .then((buffer) => {
+        sfxCache[type] = buffer;
+        return buffer;
+      })
+      .catch(() => null);
+    return sfxBufferPromises[type];
+  }
+
   function playSfx(type) {
-    const paths = {
-      click: 'audio/sfx/click.ogg',
-      eat: 'audio/sfx/eat.ogg',
-      good: 'audio/sfx/good.ogg',
-      bad: 'audio/sfx/bad.ogg',
-      resultStar: 'audio/sfx/result-star.ogg',
-      success: 'audio/sfx/success.ogg',
-      fail: 'audio/sfx/fail.ogg'
-    };
     const path = SFX_PATHS[type];
     if (!path || soundSettings.sfx <= 0) return Promise.resolve(false);
     return new Promise((resolve) => {
       try {
-        if (!sfxCache[type]) preloadSfx();
-        const audio = sfxCache[type]?.cloneNode ? sfxCache[type].cloneNode(true) : new Audio(path);
-        const volumeMultiplier = getSfxVolumeMultiplier(type);
-        audio.volume = Math.min(1, soundSettings.sfx * volumeMultiplier);
-        const done = (played) => {
-          audio.onended = null;
-          audio.onerror = null;
-          resolve(played);
+        const context = ensureAudioContext();
+        const playBuffer = (buffer) => {
+          if (!context || !buffer || !sfxGainNode) {
+            resolve(false);
+            return;
+          }
+          const source = context.createBufferSource();
+          const gain = context.createGain();
+          gain.gain.value = Math.min(1, getSfxVolumeMultiplier(type));
+          source.buffer = buffer;
+          source.connect(gain);
+          gain.connect(sfxGainNode);
+          source.onended = () => resolve(true);
+          source.start(0);
         };
-        const fallbackTimer = setTimeout(() => done(false), 900);
-        audio.onended = () => {
-          clearTimeout(fallbackTimer);
-          done(true);
-        };
-        audio.onerror = () => {
-          clearTimeout(fallbackTimer);
-          done(false);
-        };
-        audio.play().catch(() => {
-          clearTimeout(fallbackTimer);
-          done(false);
-        });
+        if (sfxCache[type]) {
+          playBuffer(sfxCache[type]);
+          return;
+        }
+        loadSfxBuffer(type, path).then(playBuffer);
       } catch (_) {
         resolve(false);
       }
@@ -1750,7 +1808,9 @@
         if (config.key === 'bgm') {
           updateBgmVolume();
           updateMainBgmVolume();
-          if (bgmPreviewAudio) bgmPreviewAudio.volume = getBgmPreviewVolume();
+          if (bgmPreviewAudio) updateBgmVolume();
+        } else if (config.key === 'sfx') {
+          applySfxGain();
         }
       });
     });

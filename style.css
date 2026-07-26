@@ -148,9 +148,9 @@ h1 span { color: var(--yellow); }
 @keyframes popOut { to { opacity: 0; transform: scale(1.8) rotate(15deg); } }
 #canvasWrap { position: relative; flex: 1 1 auto; min-height: 0; overflow: hidden; }
 #gameCanvas { display: block; width: 100%; height: 100%; touch-action: none; }
-.trace-next-button { position: absolute; z-index: 6; top: calc(100% + 14px); right: 14px; display: none; width: 92px; height: 92px; min-width: 50px; min-height: 50px; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.trace-next-button { position: absolute; z-index: 6; top: calc(100% + 14px); right: 14px; display: none; width: 56px; height: 56px; min-width: 50px; min-height: 50px; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
 .trace-next-button.show { display: grid; place-items: center; animation: nextPulse .75s ease-in-out infinite alternate; }
-.trace-next-button img { display: block; width: 85px; height: 85px; object-fit: contain; pointer-events: none; user-select: none; -webkit-user-drag: none; }
+.trace-next-button img { display: block; width: 51px; height: 51px; object-fit: contain; pointer-events: none; user-select: none; -webkit-user-drag: none; }
 .trace-next-button:active { transform: translateY(3px) scale(.94); box-shadow: none; }
 @keyframes nextPulse { to { transform: scale(1.08); } }
 .game-screen.trace-mode .health-hearts { visibility: hidden; }
@@ -181,7 +181,7 @@ h1 span { color: var(--yellow); }
 .volume-control { display: block; margin: 0 0 22px; }
 .volume-control span { display: flex; justify-content: space-between; margin-bottom: 9px; font-size: 21px; font-weight: 1000; }
 .volume-control output { color: #e76543; }
-.volume-control input { width: 100%; height: 32px; accent-color: var(--orange); cursor: pointer; }
+.volume-control input { width: 100%; height: 32px; margin: -16px 0; padding: 16px 0; accent-color: var(--orange); cursor: pointer; }
 .bgm-choice-list { display: grid; gap: 12px; }
 .bgm-choice-list label { display: block; }
 .bgm-choice-list label:last-child { margin-bottom: 18px; }
